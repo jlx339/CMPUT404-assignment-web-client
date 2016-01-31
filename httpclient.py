@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
-# Copyright 2016 Abram Hindle, https://github.com/tywtyw2002, and https://github.com/treedust
+# Copyright 2016 Lixin Jin, Abram Hindle, https://github.com/tywtyw2002, and https://github.com/treedust
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import socket
 import re
 # you may use urllib to encode data appropriately
 import urllib
+from urlparse import urlparse
 
 def help():
     print "httpclient.py [GET/POST] [URL]\n"
@@ -33,20 +34,31 @@ class HTTPResponse(object):
         self.body = body
 
 class HTTPClient(object):
-    #def get_host_port(self,url):
 
     def connect(self, host, port):
-        # use sockets!
-        return None
+	if (port == None):
+		port = 80
+        # create a socket connection.
+	try:
+		clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		clientSocket.connect((host, port))
+	except:
+		sys.exit()
+        return clientSocket
 
     def get_code(self, data):
-        return None
-
-    def get_headers(self,data):
-        return None
+	if data == None:
+		return 500
+	modifiedData = data.split(" ")
+	code = int(modifiedData[1])
+        return code
 
     def get_body(self, data):
-        return None
+	if data == None:
+		return ""
+	modifiedData = data.split("\r\n\r\n")
+	body = modifiedData[1] + "\r\n"
+        return body
 
     # read everything from the socket
     def recvall(self, sock):
@@ -60,14 +72,72 @@ class HTTPClient(object):
                 done = not part
         return str(buffer)
 
+    def get_host_port(self, url):
+	parsedurl = urlparse(url)
+	hostPort = parsedurl.port
+	return hostPort
+
+    def get_host_path(self, url):
+	parsedurl = urlparse(url)
+	hostPath = parsedurl.path
+	return hostPath	
+
+    def get_host_name(self, url):
+	parsedurl = urlparse(url)
+	hostName = parsedurl.hostname
+	return hostName
+
+    def set_GET_header(self, path, host):
+	header = "GET " + path + " HTTP/1.1\r\n" 
+	header = header + "Host: " + host +"\r\n"
+	header = header + "Connection: close\r\n"
+	header = header + "Accept: */*\r\n\r\n"
+	return header
+
+    def set_POST_header(self, path, host, args):
+	header = "POST " + path + " HTTP/1.1\r\n" 
+	header = header + "Host: " + host +"\r\n"
+	header = header + "Connection: close\r\n"
+	header = header + "Accept: */*\r\n"
+ 	header = header + "Content-Type: application/x-www-form-urlencoded\r\n"
+        header = header +"Content-length: "+ str(len(args)) + "\r\n\r\n" 
+        header = header + args
+	return header
+
+
     def GET(self, url, args=None):
-        code = 500
-        body = ""
+	port = self.get_host_port(url)
+	path = self.get_host_path(url)
+	host = self.get_host_name(url)
+	
+	header = self.set_GET_header(path, host)
+	clientSocket = self.connect(host, port)
+	clientSocket.sendall(header)
+
+	response = self.recvall(clientSocket)	
+	code = self.get_code(response)
+	body = self.get_body(response)
+	
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
+	port = self.get_host_port(url)
+	path = self.get_host_path(url)
+	host = self.get_host_name(url)
+	
+	if type(args) is dict:
+		modifiedArg = urllib.urlencode(args)
+	else:
+		modifiedArg = ""
+
+	header = self.set_POST_header(path, host, modifiedArg)
+	clientSocket = self.connect(host, port)
+	clientSocket.sendall(header)
+
+	response = self.recvall(clientSocket)
+	code = self.get_code(response)
+	body = self.get_body(response)
+
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
