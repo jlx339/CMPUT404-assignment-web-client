@@ -23,7 +23,6 @@ import socket
 import re
 # you may use urllib to encode data appropriately
 import urllib
-from urlparse import urlparse
 
 def help():
     print "httpclient.py [GET/POST] [URL]\n"
@@ -72,19 +71,32 @@ class HTTPClient(object):
                 done = not part
         return str(buffer)
 
-    def get_host_port(self, url):
-	parsedurl = urlparse(url)
-	hostPort = parsedurl.port
-	return hostPort
+    def get_host_port(self, uri):
+	if (":" in uri[0]):
+		modify = uri[0].split(":")
+		hostPort = modify[1]
+	else:
+		hostPort = 80
+	return int(hostPort)
 
-    def get_host_path(self, url):
-	parsedurl = urlparse(url)
-	hostPath = parsedurl.path
+    def get_host_path(self, uri):
+	if (len(uri) == 2):
+		# get rid of query
+		if ("?" not in uri[1]):
+			hostPath = "/" + uri[1]
+		else:
+			modify = uri[1].split("?")
+			hostPath = "/" + modify[0]
+	else:
+		hostPath = ""
 	return hostPath	
 
-    def get_host_name(self, url):
-	parsedurl = urlparse(url)
-	hostName = parsedurl.hostname
+    def get_host_name(self, uri):
+	if (":" in uri[0]):
+		modify = uri[0].split(":")
+		hostName = modify[0]
+	else:
+		hostName = uri[0]
 	return hostName
 
     def set_GET_header(self, path, host):
@@ -106,10 +118,13 @@ class HTTPClient(object):
 
 
     def GET(self, url, args=None):
-	port = self.get_host_port(url)
-	path = self.get_host_path(url)
-	host = self.get_host_name(url)
-	
+	uri = re.split("://", url)[1]
+	uri = uri.split('/', 1)
+
+	port = self.get_host_port(uri)
+	path = self.get_host_path(uri)
+	host = self.get_host_name(uri)
+
 	header = self.set_GET_header(path, host)
 	clientSocket = self.connect(host, port)
 	clientSocket.sendall(header)
@@ -121,9 +136,12 @@ class HTTPClient(object):
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
-	port = self.get_host_port(url)
-	path = self.get_host_path(url)
-	host = self.get_host_name(url)
+	uri = re.split("://", url)[1]
+	uri = uri.split('/', 1)
+
+	port = self.get_host_port(uri)
+	path = self.get_host_path(uri)
+	host = self.get_host_name(uri)
 	
 	if type(args) is dict:
 		modifiedArg = urllib.urlencode(args)
